@@ -21,7 +21,7 @@ const urlsToCache = [
   // './images/icon-72.png',
   // './images/icon-96.png',
   './images/icon-128.png',
-  // './images/icon-144.png',
+  './images/icon-144.png',
   // './images/icon-152.png',
   // './images/icon-192.png',
   // './images/icon-384.png',
