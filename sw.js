@@ -17,15 +17,15 @@ const urlsToCache = [
   './js/settings_pwa.js',// 之後會建立的 PWA 設定頁邏輯檔案
 
   // 圖片資源 (確保路徑與 manifest 及 HTML 中的一致)
-  './images/icon-48.png',
-  './images/icon-72.png',
-  './images/icon-96.png',
+  // './images/icon-48.png',
+  // './images/icon-72.png',
+  // './images/icon-96.png',
   './images/icon-128.png',
-  './images/icon-144.png',
-  './images/icon-152.png',
-  './images/icon-192.png',
-  './images/icon-384.png',
-  './images/icon-512.png',
+  // './images/icon-144.png',
+  // './images/icon-152.png',
+  // './images/icon-192.png',
+  // './images/icon-384.png',
+  // './images/icon-512.png',
   // 如果您擴充功能的 lang.gif 和 summary.gif 也想在 PWA 中使用，並希望它們被快取
   // 請確保它們存在於 PWA 專案的 images 資料夾下，並在此處添加路徑
   // './images/lang.gif',
