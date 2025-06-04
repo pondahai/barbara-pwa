@@ -15,9 +15,30 @@
       "sizes": "128x128",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "./images/icon-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
     }
 
   ],
   "orientation": "portrait-primary",
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+	"screenshots": [
+	  {
+		"src": "./images/desktop.png",
+		"sizes": "1280x800",
+		"type": "image/png",
+		"form_factor": "wide"
+	  },
+	  {
+		"src": "./images/mobile.png",
+		"sizes": "360x720",
+		"type": "image/png"
+		// 不需設 form_factor，預設即為手機
+	  }
+	]
+  
 }
