@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function registerServiceWorkerForSettings() {
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/barbara-pwa/sw.js') // 假設 sw.js 在根目錄
+                navigator.serviceWorker.register('./sw.js') // 假設 sw.js 在根目錄
                     .then(registration => {
                         console.log('[Settings.js] ServiceWorker registration successful with scope: ', registration.scope);
                     })

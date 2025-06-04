@@ -3,33 +3,33 @@
 const CACHE_NAME = 'barbara-pwa-v1'; // 快取名稱，版本更新時可以修改此名稱以觸發更新
 const urlsToCache = [
   // HTML 檔案
-  '/barbara-pwa/', // 通常是 index.html 的別名，取決於伺服器設定
-  '/barbara-pwa/index.html',
-  '/barbara-pwa/settings.html',
+  './', // 通常是 index.html 的別名，取決於伺服器設定
+  './index.html',
+  './settings.html',
 
   // CSS 檔案 (假設我們之後會將 CSS 提取到 style.css)
   // 如果您現在還沒有 style.css，可以暫時註解掉或之後添加
-  '/barbara-pwa/css/style.css',
+  './css/style.css',
 
   // JavaScript 檔案
-  '/barbara-pwa/js/marked.min.js',
-  '/barbara-pwa/js/app.js',         // 之後會建立的 PWA 主要邏輯檔案
-  '/barbara-pwa/js/settings_pwa.js',// 之後會建立的 PWA 設定頁邏輯檔案
+  './js/marked.min.js',
+  './js/app.js',         // 之後會建立的 PWA 主要邏輯檔案
+  './js/settings_pwa.js',// 之後會建立的 PWA 設定頁邏輯檔案
 
   // 圖片資源 (確保路徑與 manifest 及 HTML 中的一致)
-  '/barbara-pwa/images/icon-48.png',
-  '/barbara-pwa/images/icon-72.png',
-  '/barbara-pwa/images/icon-96.png',
-  '/barbara-pwa/images/icon-128.png',
-  '/barbara-pwa/images/icon-144.png',
-  '/barbara-pwa/images/icon-152.png',
-  '/barbara-pwa/images/icon-192.png',
-  '/barbara-pwa/images/icon-384.png',
-  '/barbara-pwa/images/icon-512.png',
+  './images/icon-48.png',
+  './images/icon-72.png',
+  './images/icon-96.png',
+  './images/icon-128.png',
+  './images/icon-144.png',
+  './images/icon-152.png',
+  './images/icon-192.png',
+  './images/icon-384.png',
+  './images/icon-512.png',
   // 如果您擴充功能的 lang.gif 和 summary.gif 也想在 PWA 中使用，並希望它們被快取
   // 請確保它們存在於 PWA 專案的 images 資料夾下，並在此處添加路徑
-  // '/barbara-pwa/images/lang.gif',
-  // '/barbara-pwa/images/summary.gif',
+  // './images/lang.gif',
+  // './images/summary.gif',
 
   // (可選) 字體檔案等其他靜態資源
 ];
