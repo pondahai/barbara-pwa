@@ -37,7 +37,7 @@
 		"src": "./images/mobile.png",
 		"sizes": "360x720",
 		"type": "image/png"
-		// 不需設 form_factor，預設即為手機
+		
 	  }
 	]
   
