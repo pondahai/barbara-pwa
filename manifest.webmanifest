@@ -1,0 +1,69 @@
+{
+  "name": "Barbara AI Assistant (PWA)",
+  "short_name": "BarbaraPWA",
+  "description": "您的本地 AI 助理，PWA 版本，提供聊天與設定管理功能。",
+  "lang": "zh-TW",
+  "start_url": "/barbara-pwa/index.html",
+  "display": "standalone",
+  "background_color": "#BE93C5",
+  "theme_color": "#7BC6CC",
+  "scope": "/barbara-pwa/",
+  "icons": [
+    {
+      "src": "/barbara-pwa/images/icon-48.png",
+      "sizes": "48x48",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/barbara-pwa/images/icon-72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/barbara-pwa/images/icon-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/barbara-pwa/images/icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/barbara-pwa/images/icon-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/barbara-pwa/images/icon-152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/barbara-pwa/images/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/barbara-pwa/images/icon-384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/barbara-pwa/images/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false
+}

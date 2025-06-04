@@ -1,0 +1,356 @@
+/* css/style.css */
+
+/* --- 通用樣式 --- */
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+}
+
+.page {
+    flex: 1;
+    padding: 15px; /* 可以稍微減少頁面 padding */
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    /* overflow-y: auto;  <-- 移除 page 級的 overflow-y，讓子元素控制 */
+    height: 100%; /* 確保 .page 也佔滿父容器高度 */
+}
+
+label {
+    display: block;
+    margin-top: 10px;
+    margin-bottom: 5px;
+}
+
+input[type="text"], select, button, textarea {
+    margin-top: 5px;
+    padding: 8px;
+    width: 100%;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+    font-size: 1rem;
+}
+
+button {
+    cursor: pointer;
+    border: none;
+    margin-top: 10px; /* 統一按鈕頂部間距 */
+}
+
+/* --- 聊天頁面 (index.html) 特定樣式 --- */
+.chat-page {
+    background: linear-gradient(to right, #7BC6CC, #BE93C5);
+    color: white;
+}
+.top-controls-area {
+    flex-shrink: 0; /* 防止此區域被壓縮 */
+    padding-bottom: 10px; /* 與對話列表的間距 */
+}
+.chat-page h1 {
+    font-size: 1.5em; /* 縮小標題字體 */
+    margin-top: 5px;  /* 減少頂部 margin */
+    margin-bottom: 8px; /* 減少底部 margin */
+}
+.chat-page label, .chat-page h1 { /* 確保聊天頁的標籤和標題也是白色 */
+    color: white;
+}
+.chat-page .hint {
+    font-size: 0.8em; /* 縮小提示字體 */
+    margin-top: 3px;
+    color: #f0f0f0; /* 讓提示更柔和 */
+}
+.chat-page .nav-to-settings a {
+    color: white;
+    text-decoration: none;
+    padding: 5px 10px;
+    background-color: rgba(0,0,0,0.2);
+    border-radius: 5px;
+}
+.chat-page .nav-to-settings {
+    text-align: right;
+    margin-bottom: 10px;
+}
+.chat-page label[for="configSelect"] {
+    font-size: 0.9em; /* 縮小標籤字體 */
+    margin-top: 5px;  /* 減少頂部 margin */
+    margin-bottom: 3px; /* 減少底部 margin */
+}
+.chat-page select#configSelect,
+.chat-page input[type="text"], /* 如果頂部有 input */
+.chat-page textarea#userInput {
+    margin-top: 3px;
+    padding: 6px; /* 稍微減少 padding */
+}
+.conversation-list-container {
+    flex-grow: 1; /* 這是關鍵，使其填充剩餘空間 */
+    overflow-y: auto; /* 內容超出時滾動 */
+    margin-bottom: 10px; /* 與輸入區域的間距 */
+    border-radius: 5px;
+    background-color: rgba(255, 255, 255, 0.85);
+    color: black;
+    padding: 10px;
+    min-height: 100px; /* 設定一個最小高度，防止在內容很少時過於扁平 */
+}
+
+.conversation-item {
+    margin-bottom: 10px;
+    padding: 10px;
+    border: 1px solid #ddd; /* 邊框顏色調整 */
+    border-radius: 5px;
+    position: relative;
+    background-color: rgba(255, 255, 255, 0.7); /* 基礎背景 */
+}
+
+.conversation-item:nth-child(even) {
+    background-color: rgba(240, 240, 240, 0.7); /* 偶數項背景 */
+}
+
+.conversation-item button.delete-button,
+.conversation-item button.copy-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    position: absolute;
+    bottom: 5px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    z-index: 1;
+}
+.conversation-item button.delete-button {
+    color: red;
+    right: 5px;
+}
+.conversation-item button.copy-button {
+    color: #007bff;
+    right: 30px;
+}
+
+.input-area {
+    flex-shrink: 0; /* 防止此區域被壓縮 */
+    display: flex;
+    align-items: flex-end; /* 按鈕和輸入框底部對齊 */
+    gap: 8px; /* 調整間隙 */
+    margin-top: auto; /* 已有，保持 */
+    padding-top: 8px; /* 減少與對話列表的間距 */
+}
+.input-area > div:first-child { /* 包裹 textarea 和 hint 的 div */
+    flex-grow: 1; /* 讓它佔據更多空間 */
+}
+textarea#userInput {
+    flex: 1; /* 已有 */
+    height: 60px;    /* 縮小初始高度 */
+    min-height: 40px; /* 縮小最小高度 */
+    max-height: 120px;/* 縮小最大高度 */
+    padding: 8px;    /* 調整 padding */
+}
+
+.action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.action-buttons button {
+    padding: 6px 8px; /* 縮小按鈕 padding */
+    font-size: 0.9em; /* 縮小按鈕字體 */
+    margin-top: 0;    /* 移除按鈕自身的 margin-top，由 gap 控制 */
+    min-width: 100px; /* 調整最小寬度 */
+}
+
+.action-buttons .send-button {
+    background-color: #dc3545; /* 更鮮明的紅色 */
+    color: white;
+}
+.action-buttons .action-button {
+    background-color: #28a745; /* 更鮮明的綠色 */
+    color: white;
+}
+
+.delete-all-conversations {
+    text-align: right;
+    margin-bottom: 5px; /* 與對話列表的間距 */
+    margin-top: -28px; /* 嘗試將其與 select 重疊或更近，根據實際效果調整 */
+    position: relative; /* 確保 z-index 生效（如果需要） */
+    padding-right: 5px; /* 避免太靠邊 */
+}
+.delete-all-conversations button {
+    font-size: 18px; /* 稍微調整 */
+    width: 22px;
+    height: 22px;
+
+}
+.delete-all-conversations button:hover {
+    color: #ff0000; /* 滑鼠懸停時變實色 */
+}
+
+
+code {
+    background-color: #282c34; /* 暗色背景 */
+    color: #abb2bf;    /* 淺色文字 */
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+    padding: 10px 15px; /* 調整 padding */
+    border-radius: 5px;
+    display: block;
+    white-space: pre-wrap;
+    overflow-x: auto;
+    position: relative;
+    font-size: 0.9em; /* 調整程式碼字體大小 */
+    border: 1px solid #3c4048;
+}
+/* 確保 pre 標籤也有良好樣式 */
+pre {
+    margin: 1em 0;
+    background-color: #282c34;
+    padding: 0; /* pre 的 padding 設為0，由 code 控制 */
+    border-radius: 5px;
+    position: relative; /* For copy button */
+}
+pre > code { /* 如果 code 在 pre 裡面，調整樣式 */
+    padding: 1em; /* 讓 pre 內的 code 有 padding */
+    border: none;
+    background-color: transparent; /* 繼承 pre 的背景 */
+}
+
+button.copy-code-button { /* 程式碼複製按鈕 */
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    cursor: pointer;
+    font-size: 16px; /* 調整大小 */
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 28px; /* 調整大小 */
+    height: 28px; /* 調整大小 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px; /* 圓角調整 */
+    z-index: 1;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+pre:hover button.copy-code-button {
+    opacity: 1;
+}
+
+
+/* --- 設定頁面 (settings.html) 特定樣式 --- */
+.settings-page {
+    background-color: #f8f9fa; /* 更亮的背景色 */
+    color: #212529; /* 深色文字 */
+}
+
+.settings-page input[type="text"], .settings-page select {
+    max-width: 400px; /* 增加設定頁輸入框最大寬度 */
+}
+.settings-page button {
+    background-color: #007bff;
+    color: white;
+    max-width: 200px; /* 設定按鈕最大寬度 */
+}
+.settings-page button:hover {
+    background-color: #0056b3;
+}
+
+.config-list-container {
+    margin-top: 30px;
+}
+
+.config-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    border: 1px solid #ced4da; /* 邊框顏色調整 */
+    border-radius: 5px;
+    padding: 12px; /* 增加 padding */
+    background-color: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05); /* 細微陰影 */
+}
+.config-item-details {
+    flex-grow: 1;
+    cursor: pointer;
+    color: #495057;
+}
+.config-item button.delete-config-btn {
+    background: none;
+    border: none;
+    color: #dc3545;
+    cursor: pointer;
+    font-size: 1.2em;
+    padding: 5px;
+    margin: 0 0 0 10px;
+}
+.config-item button.delete-config-btn:hover {
+    color: #c82333;
+}
+
+
+.nav-to-chat a {
+    color: #007bff;
+    text-decoration: none;
+    padding: 8px 12px;
+    background-color: #e9ecef;
+    border-radius: 5px;
+    border: 1px solid #ced4da;
+    display: inline-block; /* 讓 padding 生效 */
+}
+.nav-to-chat a:hover {
+    background-color: #dee2e6;
+    text-decoration: none;
+}
+.settings-page .nav-to-chat { /*特定於設定頁的導航樣式 */
+    margin-bottom: 25px;
+}
+
+
+/* --- 載入指示器樣式 (通用) --- */
+.loading-indicator {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.75);
+    color: white;
+    padding: 25px;
+    border-radius: 10px;
+    z-index: 10000;
+    text-align: center;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+.loading-indicator.show {
+    display: block;
+}
+.talking-head {
+    font-size: 48px; /* 放大 */
+    margin-bottom: 15px;
+}
+.loading-indicator div:last-child { /* Loading text */
+    font-size: 1.1em;
+}
+.dots::after {
+    content: '';
+    animation: dots 1.5s steps(4, end) infinite;
+}
+@keyframes dots {
+    0%, 20% { content: ''; }
+    40% { content: '.'; }
+    60% { content: '..'; }
+    80% { content: '...'; }
+}
+.loading { /* 禁用狀態的元素 */
+    opacity: 0.5; /* 更明顯的禁用效果 */
+    cursor: not-allowed !important;
+}

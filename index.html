@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barbara AI Assistant (PWA)</title>
+    <!-- 將在之後加入 manifest.webmanifest 和 service worker 註冊 -->
+	<link rel="manifest" href="/barbara-pwa/manifest.webmanifest">
+	<link rel="stylesheet" href="/barbara-pwa/css/style.css">
+
+</head>
+<body>
+    <div class="page chat-page">
+        <div class="top-controls-area">
+            <div class="nav-to-settings">
+                <a href="settings.html">前往設定</a>
+            </div>
+
+            <h1>Barbara AI (PWA)</h1>
+
+            <label for="configSelect">選擇設定:</label>
+            <select id="configSelect">
+                <!-- Options will be populated here by JavaScript -->
+            </select>
+
+            <div class="delete-all-conversations">
+                <button id="deleteAllConversationsButton" title="刪除所有對話">X</button>
+            </div>
+        </div> 
+
+        <div class="conversation-list-container" id="conversationList">
+            <!-- Conversations will be displayed here -->
+        </div>
+
+        <div class="input-area">
+            <div>
+                <textarea id="userInput" placeholder="輸入您的對話..."></textarea>
+                <div class="hint">按下 CTRL-ENTER 也可以送出</div>
+            </div>
+            <div class="action-buttons">
+                <button class="send-button" id="sendMessageButton">送出</button>
+                <button class="action-button" id="summaryButton">剪貼簿摘要</button>
+                <button class="action-button" id="translateButton">剪貼簿翻譯</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading-indicator" id="loadingIndicator">
+        <div class="talking-head">🤖</div>
+        <div>處理中<span class="dots"></span></div>
+    </div>
+
+    <!-- JavaScript 檔案將在之後引入 -->
+    <script src="js/marked.min.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
