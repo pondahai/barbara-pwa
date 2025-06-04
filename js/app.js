@@ -46,9 +46,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-    if (deleteAllConversationsButton) {
-        deleteAllConversationsButton.addEventListener('click', confirmDeleteAllConversations);
-    }
+    // 使用事件委託處理 deleteAllConversationsButton 的點擊
+    if (conversationList) {
+        conversationList.addEventListener('click', function(event) {
+            const targetButton = event.target.closest('#deleteAllConversationsButton'); // 確保點擊的是按鈕或其子元素
+            if (targetButton) {
+                confirmDeleteAllConversations();
+            }
+        });
+    }	
+    // if (deleteAllConversationsButton) {
+        // deleteAllConversationsButton.addEventListener('click', confirmDeleteAllConversations);
+    // }
 
     function registerServiceWorker() {
         if ('serviceWorker' in navigator) {
@@ -156,7 +165,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function loadConversationsUI() {
         if (!conversationList) return;
-        conversationList.innerHTML = '';
+        const currentScrollTop = conversationList.scrollTop; // 保存滾動位置
+
+        // 創建 "全部刪除" 按鈕的 HTML 字符串 (或 DOM 元素)
+        const deleteAllButtonHTML = `
+            <div class="delete-all-conversations">
+                <button id="deleteAllConversationsButton" title="刪除所有對話">X</button>
+            </div>
+        `;		
+        conversationList.innerHTML = deleteAllButtonHTML;
         if (!selectedConfig) {
              const placeholder = document.createElement('div');
              placeholder.textContent = "請選擇或新增一個設定以開始對話。";
