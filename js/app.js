@@ -379,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             setInterfaceLoading(true);
-            const response = await fetch(`${selectedConfig.apiUrl}/v1/chat/completions`, {
+            const response = await fetch(`${selectedConfig.apiUrl}/chat/completions`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
