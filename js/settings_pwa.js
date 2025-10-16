@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             setSettingsInterfaceLoading(true);
-            const response = await fetch(`${apiUrl}/v1/models`, {
+            const response = await fetch(`${apiUrl}/models`, {
                 method: 'GET', // 通常獲取模型列表是 GET 請求
                 headers: {
                     'Authorization': `Bearer ${apiKey}`,
