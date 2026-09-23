@@ -27,7 +27,16 @@ PWA 端改用能做到的等價工具：`get_current_datetime`、`read_clipboard
 
 擴充功能靠右鍵選單取得「使用者選取的那段文字」。PWA 沒有選取，改成：輸入框有字就用輸入框的字，沒字就讀剪貼簿。這也是既有的「剪貼簿摘要／翻譯」一直在用的模式。
 
-更好的入口是 PWA 特有的 **Web Share Target**（在 manifest 註冊後，手機的「分享」選單會出現 Barbara），還沒實作。那個做法連來源網址都能一起帶進來，可以把卡片的 `webpage` 來源與 `evidence_hash` 補回去。
+另一個入口是 PWA 特有的 **Web Share Target**（已實作）：在 manifest 註冊 `share_target` 之後，安裝過的 Barbara 會出現在系統的分享選單裡。分享進來時以 `./index.html?title=..&text=..&url=..` 開啟，`handleShareTarget()` 把文字填進輸入框、把標題與網址留給下一次「所以呢？」，然後用 `history.replaceState` 清掉查詢字串（否則重新整理會再觸發一次同一筆分享）。
+
+這條路把擴充功能少掉的那一塊補回來了：分享時系統會一起帶網址，所以卡片的 `sources` 會有完整的 `webpage` 那筆，含 `site_title`、`captured_at` 與 `evidence_hash`，不再只有 `kind: 'self'`。
+
+兩個實作上的坑：
+
+1. **Service Worker 必須忽略查詢字串比對快取。** 分享是以 `./index.html?title=...` 開啟的，`caches.match(request)` 配不到快取裡的 `./index.html`，離線分享進來會變成錯誤頁。現在對 `mode === 'navigate'` 的請求加上 `{ ignoreSearch: true }`。
+2. **提示橫幅要插在 `.input-area` 之前，不是裡面。** `.input-area` 是 flex row，塞進去會把輸入框與按鈕擠成一欄；`.chat-page` 是 column，插在輸入區之前就自己佔一整行。
+
+**iOS Safari 不支援 Web Share Target**，所以 iPhone 上這條路不會被走到，維持剪貼簿流程。這也是為什麼入口保留兩條而不是全面改用分享。
 
 ## 二、思考過程的三種來源
 
@@ -93,7 +102,7 @@ chunkSize=17   -> ""                ← 全掉
 
 ## 六、Service Worker 快取版本要手動升
 
-`sw.js` 的 `CACHE_NAME` 是寫死的字串。**改了任何前端檔案就要升版號**，否則已安裝的 PWA 會一直吃舊的快取，看不到新程式碼。目前是手動維護（v1 → v2 → v3），這是個遲早要自動化的地方（build 時帶時間戳或 git hash）。
+`sw.js` 的 `CACHE_NAME` 是寫死的字串。**改了任何前端檔案就要升版號**，否則已安裝的 PWA 會一直吃舊的快取，看不到新程式碼。目前是手動維護（已經升到 v5），這是個遲早要自動化的地方（build 時帶時間戳或 git hash）。
 
 新增檔案也要加進 `urlsToCache`，不然離線時抓不到。`so-what-prompt.md` 是執行時 `fetch` 進來的，所以它也必須在快取清單裡。
 

@@ -1,6 +1,6 @@
 // sw.js
 
-const CACHE_NAME = 'barbara-pwa-v4'; // 快取名稱，版本更新時可以修改此名稱以觸發更新
+const CACHE_NAME = 'barbara-pwa-v5'; // 快取名稱，版本更新時可以修改此名稱以觸發更新
 const urlsToCache = [
   // HTML 檔案
   './', // 通常是 index.html 的別名，取決於伺服器設定
@@ -100,9 +100,14 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // 導覽請求要忽略查詢字串再比對快取。Web Share Target 是以
+  // ./index.html?title=..&text=..&url=.. 開啟的，帶著查詢字串就配不到快取裡的
+  // ./index.html，離線時分享進來會變成錯誤頁。
+  const matchOptions = event.request.mode === 'navigate' ? { ignoreSearch: true } : undefined;
+
   // 快取優先策略 (Cache First, then Network)
   event.respondWith(
-    caches.match(event.request)
+    caches.match(event.request, matchOptions)
       .then(cachedResponse => {
         // 情況 1: 在快取中找到了匹配的資源
         if (cachedResponse) {

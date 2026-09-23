@@ -8,8 +8,10 @@
 //
 // 與擴充版的差異：
 //   1. 儲存改用 localStorage（擴充是 chrome.storage.local）。保留 async 介面，流程邏輯不動。
-//   2. 沒有當前分頁，所以沒有 pageTitle / pageUrl，來源只記 kind: 'self'。
-//   3. 入口從右鍵選單改成畫面上的按鈕：輸入框有字就用輸入框，沒字就讀剪貼簿。
+//   2. 沒有當前分頁。手動貼上的文字沒有來源，卡片只記 kind: 'self'；
+//      從 Web Share Target 進來的才會帶 pageTitle / pageUrl。
+//   3. 入口從右鍵選單改成畫面上的按鈕（輸入框有字就用輸入框，沒字就讀剪貼簿），
+//      以及 Web Share Target（安裝後從別的 app 分享文字進來）。
 //   4. app.js 的內部函式包在 DOMContentLoaded 閉包裡，這裡透過 window.BarbaraApp 取用。
 
 (function () {
@@ -41,12 +43,12 @@
     let soWhatSession = null;
     let soWhatThreadEl = null;
 
-    function soWhatNewSession(text) {
+    function soWhatNewSession(text, pageTitle, pageUrl) {
         return {
             active: true,
             selectedText: text,
-            pageTitle: '',
-            pageUrl: '',
+            pageTitle: pageTitle || '',
+            pageUrl: pageUrl || '',
             direction: null,
             turnCount: 0,
             messages: [],   // 送給模型的 user/assistant 往返（不含 system）
@@ -686,9 +688,18 @@
         await soWhatFromText(text);
     }
 
-    async function soWhatFromText(text) {
+    async function soWhatFromText(text, pageTitle, pageUrl) {
+        // 從 Web Share Target 進來的話會有來源標題與網址，卡片就能記下 webpage 來源
+        // 與 evidence_hash；手動貼上的沒有來源，只會留 kind: 'self'。
+        if (pageTitle === undefined && pageUrl === undefined && app().takeShareSource) {
+            const source = app().takeShareSource();
+            if (source) {
+                pageTitle = source.title;
+                pageUrl = source.url;
+            }
+        }
         soWhatThreadEl = null; // 每次新對話都用全新的容器，不要接在上一段後面
-        soWhatSession = soWhatNewSession(text);
+        soWhatSession = soWhatNewSession(text, pageTitle, pageUrl);
         soWhatSession.uiLog.push({ kind: 'intro' });
         await soWhatSaveSession();
 

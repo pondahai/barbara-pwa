@@ -22,6 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
         main: null, // 指向當前主要 (非思考) 回應的 .conversation-content div
         think: null // 指向當前思考塊的 <details> 元素內的 .thinking-content-inner div
     };
+    // 從 Web Share Target 進來的來源資訊（標題與網址），給「所以呢？」的卡片用
+    let pendingShareSource = null;
     let pendingStreamText = ''; // 尚未處理的串流尾巴（可能是被切一半的標籤）
     let reasoningFieldOpen = false; // 獨立 reasoning 欄位的思考區塊是否還沒收尾
     let streamingThinkDetails = null; // 指向當前串流中的思考 <details> 元素，結束時用來摺疊
@@ -47,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     registerServiceWorker();
     registerFollowScrollListeners();
     exposeAppBridge();
+    handleShareTarget();
     if (window.SoWhat) window.SoWhat.restoreIfAny();
 
     // 事件監聽器
@@ -105,8 +108,86 @@ document.addEventListener('DOMContentLoaded', () => {
             scrollToBottom: scrollToBottom,
             extractFirstJsonObject: extractFirstJsonObject,
             getLanguageName: getLanguageName,
-            createStreamParser: createStreamParser
+            createStreamParser: createStreamParser,
+            // 「所以呢？」開始新對話時取用並清掉，避免下一次沿用舊來源
+            takeShareSource: () => {
+                const source = pendingShareSource;
+                pendingShareSource = null;
+                return source;
+            }
         };
+    }
+
+    // Web Share Target：安裝後從別的 app 分享文字進來，會以
+    // ./index.html?title=..&text=..&url=.. 開啟。把內容填進輸入框，
+    // 來源留給「所以呢？」的卡片用，並清掉網址上的查詢字串（否則重新整理會再觸發一次）。
+    //
+    // 注意：iOS Safari 不支援 Web Share Target，所以這條路在 iPhone 上不會被走到，
+    // iPhone 維持「複製 → 開啟 → 按所以呢？」的剪貼簿流程。
+    function handleShareTarget() {
+        if (!window.location.search) return;
+        const params = new URLSearchParams(window.location.search);
+        const sharedText = (params.get('text') || '').trim();
+        const sharedUrl = (params.get('url') || '').trim();
+        const sharedTitle = (params.get('title') || '').trim();
+        if (!sharedText && !sharedUrl && !sharedTitle) return;
+
+        // 分享網頁時多數 app 會把選取的文字放在 text、網址放在 url。
+        // 只有網址沒有文字時，就把網址本身當內容，讓使用者能接著請代理去抓。
+        const content = sharedText || sharedUrl;
+        if (userInput && content) userInput.value = content;
+
+        if (sharedUrl || sharedTitle) {
+            pendingShareSource = { title: sharedTitle, url: sharedUrl };
+        }
+
+        renderShareBanner(sharedTitle, sharedUrl);
+
+        // 清掉查詢字串，避免重新整理或之後的導覽重複帶入同一筆分享
+        window.history.replaceState({}, '', window.location.pathname);
+    }
+
+    function renderShareBanner(title, url) {
+        const inputArea = document.querySelector('.input-area');
+        if (!inputArea || !inputArea.parentElement) return;
+        const existing = document.getElementById('shareBanner');
+        if (existing) existing.remove();
+
+        const banner = document.createElement('div');
+        banner.id = 'shareBanner';
+        banner.className = 'share-banner';
+
+        const info = document.createElement('div');
+        info.className = 'share-banner-info';
+        const source = title || url;
+        info.textContent = source ? `已接收分享內容 — ${source}` : '已接收分享內容';
+        if (url) info.title = url;
+        banner.appendChild(info);
+
+        const actions = document.createElement('div');
+        actions.className = 'share-banner-actions';
+
+        const soWhatBtn = document.createElement('button');
+        soWhatBtn.textContent = '所以呢？';
+        soWhatBtn.onclick = () => {
+            banner.remove();
+            if (window.SoWhat) window.SoWhat.start();
+        };
+
+        const dismiss = document.createElement('button');
+        dismiss.className = 'share-banner-dismiss';
+        dismiss.textContent = '關閉';
+        dismiss.onclick = () => {
+            banner.remove();
+            pendingShareSource = null;
+        };
+
+        actions.appendChild(soWhatBtn);
+        actions.appendChild(dismiss);
+        banner.appendChild(actions);
+        // 插在輸入區之前而不是裡面：.input-area 是 flex row，塞進去會把輸入框與
+        // 按鈕擠成奇怪的排版；.chat-page 是 column，放這裡就自己佔一整行。
+        inputArea.parentElement.insertBefore(banner, inputArea);
     }
 
     function registerServiceWorker() {

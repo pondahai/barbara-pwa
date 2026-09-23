@@ -696,3 +696,48 @@ button.sowhat-option-exit:hover:not(:disabled) {
     gap: 8px;
     margin-top: 10px;
 }
+
+/* --- Web Share Target 的接收提示 --- */
+.share-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    border: 1px solid #7BC6CC;
+    border-radius: 5px;
+    background-color: rgba(123, 198, 204, 0.18);
+    font-size: 0.9em;
+}
+
+.share-banner-info {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.share-banner-actions {
+    display: flex;
+    gap: 6px;
+    flex: none;
+}
+
+.share-banner-actions button {
+    margin: 0;
+    padding: 5px 10px;
+    border: none;
+    border-radius: 4px;
+    background-color: #6a4c93;
+    color: white;
+    cursor: pointer;
+    font-size: 0.9em;
+    width: auto;
+}
+
+.share-banner-actions button.share-banner-dismiss {
+    background-color: #888;
+}
