@@ -23,7 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
         think: null // 指向當前思考塊的 <details> 元素內的 .thinking-content-inner div
     };
     let pendingStreamText = ''; // 尚未處理的串流尾巴（可能是被切一半的標籤）
-    let pendingSseText = '';    // 尚未解析完的 SSE 行（read() 可能切在 JSON 中間）
     let reasoningFieldOpen = false; // 獨立 reasoning 欄位的思考區塊是否還沒收尾
     let streamingThinkDetails = null; // 指向當前串流中的思考 <details> 元素，結束時用來摺疊
     let currentStreamIsThinking = false; // 標記當前串流的內容是否在思考塊內
@@ -105,7 +104,8 @@ document.addEventListener('DOMContentLoaded', () => {
             escapeHtml: escapeHtml,
             scrollToBottom: scrollToBottom,
             extractFirstJsonObject: extractFirstJsonObject,
-            getLanguageName: getLanguageName
+            getLanguageName: getLanguageName,
+            createStreamParser: createStreamParser
         };
     }
 
@@ -1083,11 +1083,11 @@ document.addEventListener('DOMContentLoaded', () => {
         streamingThinkDetails = null;
         currentStreamIsThinking = false;
         pendingStreamText = '';
-        pendingSseText = '';
         reasoningFieldOpen = false;
         if (recursionDepth === 0) autoFollowScroll = true; // 新回答開始時重置為跟隨模式
         let currentAccumulatedTextForDOM = ""; // 用於當前 DOM 塊的文本
         const responseToolCalls = []; // 原生 tool_calls 的累積結果
+        const parseChunk = createStreamParser();
 
         try {
             setInterfaceLoading(true);
@@ -1134,7 +1134,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else {
                     const rawChunk = decoder.decode(value, { stream: true });
-                    const parsedChunk = parseStreamChunk(rawChunk);
+                    const parsedChunk = parseChunk(rawChunk);
                     mergeToolCallDeltas(responseToolCalls, parsedChunk.toolCalls);
                     pendingStreamText += buildTaggedText(parsedChunk); // 從原始 chunk 中提取實際內容
                     const split = splitAtPossibleTag(pendingStreamText);
@@ -1337,7 +1337,6 @@ document.addEventListener('DOMContentLoaded', () => {
             streamingThinkDetails = null;
             currentStreamIsThinking = false;
             pendingStreamText = '';
-            pendingSseText = '';
             reasoningFieldOpen = false;
             scrollToBottom();
         }
@@ -1391,15 +1390,20 @@ document.addEventListener('DOMContentLoaded', () => {
     //   a) content 裡的 <think> 等標籤（LM Studio、未開推理解析的 llama.cpp）
     //   b) 獨立欄位 delta.reasoning_content（llama.cpp）或 delta.reasoning（vLLM）
     // 這裡只負責取值，標籤解析仍由呼叫端的狀態機處理。
-    function parseStreamChunk(rawChunk) {
+    // 回傳一個解析器。每個串流各自一份行緩衝，
+    // 聊天跟「所以呢？」同時用也不會互相污染。
+    function createStreamParser() {
+        let pendingSse = ''; // 尚未解析完的 SSE 行（read() 可能切在 JSON 中間）
+
+        return function parseStreamChunk(rawChunk) {
         let content = '';
         let reasoning = '';
         const toolCalls = [];
 
         // 一次 read() 可能剛好切在某一行 JSON 中間，把不完整的尾行留到下一次再解析
-        pendingSseText += rawChunk;
-        const lines = pendingSseText.split('\n');
-        pendingSseText = lines.pop();
+        pendingSse += rawChunk;
+        const lines = pendingSse.split('\n');
+        pendingSse = lines.pop();
 
         lines.forEach(line => {
             line = line.trim();
@@ -1427,6 +1431,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         return { content: content, reasoning: reasoning, toolCalls: toolCalls };
+        };
     }
 
     async function getTextFromClipboard() {

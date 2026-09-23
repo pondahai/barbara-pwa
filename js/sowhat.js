@@ -2,7 +2,7 @@
 //
 // 從擴充功能的 sowhat.js 移植。與聊天最大的不同：這是多輪對話，而且模型必須回傳 JSON。
 // 因此它不走 runAgentStreamLoop（那條路會強制注入 tool-use system prompt 並掛上所有工具），
-// 改用本檔的 soWhatRunSingleTurn：無工具、非串流、system prompt 由 so-what-prompt.md 載入。
+// 改用本檔的 soWhatRunSingleTurn：無工具、串流、system prompt 由 so-what-prompt.md 載入。
 //
 // 行為定義全部在 so-what-prompt.md，改追問策略請改那個檔案，不要動這裡。
 //
@@ -113,15 +113,18 @@
     }
 
     // ---------------------------------------------------------------------------
-    // 單輪呼叫：無工具、非串流
+    // 單輪呼叫：無工具、串流
     // ---------------------------------------------------------------------------
 
     // 刻意不共用 runAgentStreamLoop：
     //   1. 那個 loop 會硬插一段「你有工具，請使用工具」的 system prompt，會蓋掉角色設定。
     //   2. 它無條件掛上 ToolRegistry 全部工具並設 tool_choice:"auto"，本機小模型很容易
     //      改去呼叫工具而不是回 JSON。
-    //   3. 回應只有三句話 + 選項，不需要串流。
-    async function soWhatRunSingleTurn(config, messages) {
+    // 擴充功能的版本這裡是非串流的（理由：「回應只有三句話 + 選項，不需要串流」）。
+    // 但推理模型會為了這三句話思考上千個 token（實測 qwen3.8 每輪約 1700 個），
+    // 非串流就是一到兩分鐘的空白轉圈。所以這裡改成串流：思考量、提示詞、收尾判準
+    // 一律不動，只是讓思考過程邊想邊顯示，JSON 仍然等串流結束才解析。
+    async function soWhatRunSingleTurn(config, messages, onThinking) {
         const response = await fetch(`${config.apiUrl}/chat/completions`, {
             method: 'POST',
             headers: {
@@ -131,7 +134,7 @@
             body: JSON.stringify({
                 model: config.modelId,
                 messages: messages,
-                stream: false
+                stream: true
             })
         });
 
@@ -140,17 +143,38 @@
             throw new Error(`API 請求失敗: ${response.status} ${errorData.message || ''}`);
         }
 
-        const data = await response.json();
-        const message = (data.choices && data.choices[0] && data.choices[0].message) || {};
-        let content = message.content || '';
+        // 跟聊天共用同一套 SSE 解析（含行被切斷的緩衝、reasoning 欄位收集）。
+        // createStreamParser 每次回傳新的緩衝，所以不會跟聊天的串流互相污染。
+        const parseChunk = app().createStreamParser();
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let content = '';
+        let reasoning = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const parsed = parseChunk(decoder.decode(value, { stream: true }));
+            if (parsed.reasoning) {
+                reasoning += parsed.reasoning;
+                if (typeof onThinking === 'function') onThinking(reasoning);
+            }
+            if (parsed.content) {
+                content += parsed.content;
+                // 標籤式的思考（夾在 content 裡的 <think>）也要能邊想邊看。
+                // 串流中的標籤只有起始沒有結束，所以抽起始標籤之後的部分就好。
+                if (typeof onThinking === 'function' && !reasoning) {
+                    const open = content.match(/(?:<think>|<\|channel>thought\n?|<thought>)([\s\S]*)$/);
+                    if (open && open[1]) onThinking(open[1]);
+                }
+            }
+        }
 
         // 思考過程有兩種來源，都要在解析 JSON 之前剝掉，但要留下來顯示：
-        //   a) 獨立欄位（llama.cpp 的 reasoning_content、vLLM 的 reasoning）
-        //   b) content 裡的 <think> 等標籤（非串流時會整段留在 content）
+        //   a) 獨立欄位（llama.cpp 的 reasoning_content、vLLM 的 reasoning）——上面已經收集
+        //   b) content 裡的 <think> 等標籤
         const thinking = [];
-        ['reasoning_content', 'reasoning'].forEach(field => {
-            if (message[field]) thinking.push(String(message[field]).trim());
-        });
+        if (reasoning.trim()) thinking.push(reasoning.trim());
 
         const thinkRegex = /(?:<think>|<\|channel>thought\n?|<thought>)([\s\S]*?)(?:<\/think>|<channel\|>|<\/thought>)/g;
         let match;
@@ -449,6 +473,41 @@
         content.appendChild(details);
     }
 
+    // 串流期間的思考區塊：第一個 token 到時才建，之後每次更新內容。
+    // 回傳一個控制器，讓呼叫端在串流結束後拆掉。
+    function soWhatCreateLiveThinking() {
+        let itemContent = null;
+        let inner = null;
+
+        return {
+            update(text) {
+                if (!itemContent) {
+                    itemContent = soWhatAppendItem('assistant-message thinking-process');
+                    if (!itemContent) return;
+                    const details = document.createElement('details');
+                    details.open = true; // 串流中展開，讓使用者看到它正在想
+                    const summary = document.createElement('summary');
+                    summary.textContent = 'AI 思考中...';
+                    details.appendChild(summary);
+                    inner = document.createElement('div');
+                    inner.className = 'thinking-content-inner';
+                    details.appendChild(inner);
+                    itemContent.appendChild(details);
+                }
+                // 串流中用 textContent：markdown 還沒寫完，每一個 token 都重新 parse
+                // 不僅浪費，未閉合的語法還會讓畫面念跳。
+                if (inner) inner.textContent = text + '\u258d';
+            },
+            // 串流結束：拆掉這個臨時區塊，後續由 soWhatRenderThinking 畫正式的（含 markdown）。
+            // 這樣 uiLog 重畫跟即時顯示就不用各維護一份邏輯。
+            discard() {
+                if (itemContent && itemContent.parentElement) itemContent.parentElement.remove();
+                itemContent = null;
+                inner = null;
+            }
+        };
+    }
+
     function soWhatRenderUserChoice(label) {
         const content = soWhatAppendItem('user-message');
         if (!content) return;
@@ -716,7 +775,13 @@
             const systemPrompt = soWhatRenderPrompt(template, soWhatSession);
             const messages = [{ role: 'system', content: systemPrompt }].concat(soWhatSession.messages);
 
-            const turn = await soWhatRunSingleTurn(config, messages);
+            const live = soWhatCreateLiveThinking();
+            let turn;
+            try {
+                turn = await soWhatRunSingleTurn(config, messages, (text) => live.update(text));
+            } finally {
+                live.discard(); // 不管成功失敗都要拆掉，否則帶游標的區塊會永遠留在畫面上
+            }
             soWhatSession.messages.push({ role: 'assistant', content: turn.content });
 
             if (turn.thinking) {
