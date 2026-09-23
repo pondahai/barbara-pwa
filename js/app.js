@@ -20,11 +20,22 @@ document.addEventListener('DOMContentLoaded', () => {
         main: null, // 指向當前主要 (非思考) 回應的 .conversation-content div
         think: null // 指向當前思考塊的 <details> 元素內的 .thinking-content-inner div
     };
-    let currentStreamIsThinking = false; // 標記當前串流的內容是否在 <think> 塊內
+    let streamingThinkDetails = null; // 指向當前串流中的思考 <details> 元素，結束時用來摺疊
+    let currentStreamIsThinking = false; // 標記當前串流的內容是否在思考塊內
+
+    // 各家推理模型的思考標籤：DeepSeek <think>、Gemma 4 <|channel>thought、其他 <thought>
+    const THINK_START_TAGS = ['<think>', '<|channel>thought', '<thought>'];
+    const THINK_END_TAGS = ['</think>', '<channel|>', '</thought>'];
+
+    // 智慧型跟隨捲動：使用者往上看前文時暫停自動跟隨，回到底部時自動恢復
+    let autoFollowScroll = true;          // 是否處於「跟隨」狀態
+    let userScrollIntent = false;         // 使用者是否正在用滑鼠/觸控操作捲動
+    const FOLLOW_BOTTOM_THRESHOLD = 100;  // 距離底部多少 px 內視為「在底部」
 
     // 初始化操作
     loadConfigsForSelection();
     registerServiceWorker();
+    registerFollowScrollListeners();
 
     // 事件監聽器
     if (configSelect) {
@@ -250,7 +261,11 @@ document.addEventListener('DOMContentLoaded', () => {
             div.appendChild(copyButton);
         }
         conversationList.appendChild(div);
-        scrollToBottom();
+        if (isStreaming) {
+            smartFollowScroll();
+        } else {
+            scrollToBottom();
+        }
 
         // 返回用於串流更新的相關 DOM 元素
         if (isStreaming) {
@@ -263,6 +278,20 @@ document.addEventListener('DOMContentLoaded', () => {
         return div; // 對於非串流，返回整個 conversation-item div
     }
 
+
+    // 在文字中找出最早出現的思考標籤，回傳 { index, length }；找不到時 index 為 -1。
+    // Gemma 4 的 <|channel>thought 後面通常緊跟一個換行，一併吃掉避免思考區塊開頭空行。
+    function findEarliestThinkTag(text, tags) {
+        let found = { index: -1, length: 0 };
+        tags.forEach(tag => {
+            const idx = text.indexOf(tag);
+            if (idx === -1) return;
+            if (found.index !== -1 && idx >= found.index) return;
+            const eatNewline = (tag === '<|channel>thought' && text.startsWith('\n', idx + tag.length)) ? 1 : 0;
+            found = { index: idx, length: tag.length + eatNewline };
+        });
+        return found;
+    }
 
     function escapeHtml(unsafe) {
         if (typeof unsafe !== 'string') return '';
@@ -341,10 +370,53 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // 強制捲到底（載入對話、送出訊息、結束串流時使用）
     function scrollToBottom() {
         if (conversationList) {
             conversationList.scrollTop = conversationList.scrollHeight;
         }
+    }
+
+    function isNearBottom() {
+        if (!conversationList) return true;
+        return conversationList.scrollHeight - conversationList.scrollTop
+            - conversationList.clientHeight < FOLLOW_BOTTOM_THRESHOLD;
+    }
+
+    // 只在「跟隨」狀態下才捲到底（串流期間使用），使用者往上看前文時不打斷他
+    function smartFollowScroll() {
+        if (!autoFollowScroll) return;
+        scrollToBottom();
+    }
+
+    // 滾輪往上 = 使用者想看前文，立即暫停跟隨
+    function registerFollowScrollListeners() {
+        if (!conversationList) return;
+
+        conversationList.addEventListener('wheel', (event) => {
+            if (event.deltaY < 0) autoFollowScroll = false;
+        }, { passive: true });
+
+        // 觸控 / 拖曳捲軸期間，若離開底部就暫停跟隨
+        conversationList.addEventListener('touchstart', () => { userScrollIntent = true; }, { passive: true });
+        conversationList.addEventListener('touchend', () => { userScrollIntent = false; }, { passive: true });
+        conversationList.addEventListener('mousedown', () => { userScrollIntent = true; });
+        window.addEventListener('mouseup', () => { userScrollIntent = false; });
+
+        window.addEventListener('keydown', (event) => {
+            const activeTag = document.activeElement ? document.activeElement.tagName : '';
+            if (activeTag === 'TEXTAREA' || activeTag === 'INPUT') return;
+            if (['PageUp', 'ArrowUp', 'Home'].includes(event.key)) autoFollowScroll = false;
+        });
+
+        // 捲回接近底部時恢復跟隨；使用者操作中離開底部則暫停
+        conversationList.addEventListener('scroll', () => {
+            if (isNearBottom()) {
+                autoFollowScroll = true;
+            } else if (userScrollIntent) {
+                autoFollowScroll = false;
+            }
+        }, { passive: true });
     }
 
     // --- API 請求與處理 ---
@@ -374,7 +446,9 @@ document.addEventListener('DOMContentLoaded', () => {
         accumulatedResponse = ''; // 累積已解析的文本內容 (不含 data: 前綴)
         streamingDOMs.main = null;
         streamingDOMs.think = null;
+        streamingThinkDetails = null;
         currentStreamIsThinking = false;
+        autoFollowScroll = true; // 新回答開始時重置為跟隨模式
         let currentAccumulatedTextForDOM = ""; // 用於當前 DOM 塊的文本
 
         try {
@@ -413,9 +487,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     let processableTokenStream = contentTokens;
                     while (processableTokenStream.length > 0) {
                         if (!currentStreamIsThinking) { // 當前在處理主要回應內容
-                            const thinkStartIndex = processableTokenStream.indexOf('<think>');
-                            if (thinkStartIndex !== -1) { // 在當前 token 中找到了 <think>
-                                // 1. <think> 之前的部分，添加到主要回應
+                            const thinkStart = findEarliestThinkTag(processableTokenStream, THINK_START_TAGS);
+                            const thinkStartIndex = thinkStart.index;
+                            if (thinkStartIndex !== -1) { // 在當前 token 中找到了思考起始標籤
+                                // 1. 起始標籤之前的部分，添加到主要回應
                                 const beforeThinkText = processableTokenStream.substring(0, thinkStartIndex);
                                 if (beforeThinkText) {
                                     currentAccumulatedTextForDOM += beforeThinkText;
@@ -431,8 +506,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 currentStreamIsThinking = true;
                                 currentAccumulatedTextForDOM = ""; // 重置累積文本給新的塊
                                 streamingDOMs.main = null; // 主要回應的當前 DOM 塊結束
-                                processableTokenStream = processableTokenStream.substring(thinkStartIndex + '<think>'.length);
-                            } else { // 當前 token 中沒有 <think>，全部是主要回應
+                                processableTokenStream = processableTokenStream.substring(thinkStartIndex + thinkStart.length);
+                            } else { // 當前 token 中沒有思考起始標籤，全部是主要回應
                                 currentAccumulatedTextForDOM += processableTokenStream;
                                 if (!streamingDOMs.main) {
                                      const domRefs = appendConversationToDOM({ role: 'assistant', content: currentAccumulatedTextForDOM, isThinking: false }, -1, true);
@@ -444,32 +519,54 @@ document.addEventListener('DOMContentLoaded', () => {
                                 processableTokenStream = ""; // 當前 token 處理完畢
                             }
                         } else { // currentStreamIsThinking is true，當前在處理 <think> 內部內容
-                            const thinkEndIndex = processableTokenStream.indexOf('</think>');
-                            if (thinkEndIndex !== -1) { // 在當前 token 中找到了 </think>
-                                // 1. </think> 之前的部分，添加到思考內容
+                            const thinkEnd = findEarliestThinkTag(processableTokenStream, THINK_END_TAGS);
+                            const thinkEndIndex = thinkEnd.index;
+                            if (thinkEndIndex !== -1) { // 在當前 token 中找到了思考結束標籤
+                                // 1. 結束標籤之前的部分，添加到思考內容
                                 const inThinkText = processableTokenStream.substring(0, thinkEndIndex);
                                 if (inThinkText) {
                                     currentAccumulatedTextForDOM += inThinkText;
                                     if (!streamingDOMs.think) {
                                         const domRefs = appendConversationToDOM({ role: 'assistant', content: currentAccumulatedTextForDOM, isThinking: true }, -1, true);
                                         streamingDOMs.think = domRefs.contentContainer;
-                                        if (domRefs.parentItem.querySelector('details')) domRefs.parentItem.querySelector('details').open = true; // 串流時展開
+                                        streamingThinkDetails = domRefs.parentItem.querySelector('details');
+                                        if (streamingThinkDetails) {
+                                            streamingThinkDetails.open = true; // 串流時展開
+                                            const summary = streamingThinkDetails.querySelector('summary');
+                                            if (summary) summary.textContent = 'AI 思考中...';
+                                        }
                                     }
                                     if (streamingDOMs.think) {
                                         streamingDOMs.think.innerHTML = typeof marked !== 'undefined' ? marked.parse(currentAccumulatedTextForDOM + "▍") : escapeHtml(currentAccumulatedTextForDOM + "▍");
                                     }
                                 }
-                                // 2. 切換回主要回應模式
+                                // 2. 思考結束：移除游標並自動摺疊，避免長篇思考擠掉正式回覆
+                                if (streamingDOMs.think && streamingDOMs.think.innerHTML.endsWith("▍")) {
+                                    streamingDOMs.think.innerHTML = streamingDOMs.think.innerHTML.slice(0, -1);
+                                }
+                                if (streamingThinkDetails) {
+                                    streamingThinkDetails.open = false;
+                                    const summary = streamingThinkDetails.querySelector('summary');
+                                    if (summary) summary.textContent = '顯示/隱藏 AI 思考過程';
+                                    streamingThinkDetails = null;
+                                }
+
+                                // 3. 切換回主要回應模式
                                 currentStreamIsThinking = false;
                                 currentAccumulatedTextForDOM = ""; // 重置累積文本給新的塊
                                 streamingDOMs.think = null; // 思考塊的當前 DOM 結束
-                                processableTokenStream = processableTokenStream.substring(thinkEndIndex + '</think>'.length);
-                            } else { // 當前 token 中沒有 </think>，全部是思考內容
+                                processableTokenStream = processableTokenStream.substring(thinkEndIndex + thinkEnd.length);
+                            } else { // 當前 token 中沒有思考結束標籤，全部是思考內容
                                 currentAccumulatedTextForDOM += processableTokenStream;
                                 if (!streamingDOMs.think) {
                                     const domRefs = appendConversationToDOM({ role: 'assistant', content: currentAccumulatedTextForDOM, isThinking: true }, -1, true);
                                     streamingDOMs.think = domRefs.contentContainer;
-                                    if (domRefs.parentItem.querySelector('details')) domRefs.parentItem.querySelector('details').open = true;
+                                    streamingThinkDetails = domRefs.parentItem.querySelector('details');
+                                    if (streamingThinkDetails) {
+                                        streamingThinkDetails.open = true;
+                                        const summary = streamingThinkDetails.querySelector('summary');
+                                        if (summary) summary.textContent = 'AI 思考中...';
+                                    }
                                 }
                                 if (streamingDOMs.think) {
                                      streamingDOMs.think.innerHTML = typeof marked !== 'undefined' ? marked.parse(currentAccumulatedTextForDOM + "▍") : escapeHtml(currentAccumulatedTextForDOM + "▍");
@@ -479,7 +576,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     } // end while (processableTokenStream.length > 0)
                 } // end if (contentTokens)
-                scrollToBottom();
+                smartFollowScroll();
             } // end while(true) reader.read()
 
             // 串流結束，移除最後的游標並儲存
@@ -523,13 +620,15 @@ document.addEventListener('DOMContentLoaded', () => {
             accumulatedResponse = '';
             streamingDOMs.main = null;
             streamingDOMs.think = null;
+            streamingThinkDetails = null;
             currentStreamIsThinking = false;
             scrollToBottom();
         }
     }
 
     function parseAndStoreFinalResponse(finalRenderedText) {
-        const thinkTagRegex = /(?:<think>([\s\S]*?)<\/think>)/; // 非全局，用於 iterative split
+        // 非全局，用於 iterative split；同時支援 <think>、Gemma 4 <|channel>thought 與 <thought>
+        const thinkTagRegex = /(?:<think>|<\|channel>thought\n?|<thought>)([\s\S]*?)(?:<\/think>|<channel\|>|<\/thought>)/;
         let remainingText = finalRenderedText;
         let parts = [];
 
