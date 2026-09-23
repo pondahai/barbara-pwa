@@ -372,3 +372,70 @@ pre:hover button.copy-code-button {
     opacity: 0.5; /* 更明顯的禁用效果 */
     cursor: not-allowed !important;
 }
+
+/* --- Agent 工具授權與執行紀錄 --- */
+.conversation-item.tool-approval {
+    border: 1px solid #ffcc00;
+    background-color: rgba(255, 204, 0, 0.12);
+    border-radius: 5px;
+}
+
+.tool-approval-body {
+    padding: 10px;
+    font-size: 0.92em;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.tool-approval-body code {
+    display: inline;
+    padding: 2px 4px;
+    font-size: 0.95em;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.tool-approval-note {
+    padding: 0 10px 8px 10px;
+    font-size: 0.85em;
+    color: #b36b00;
+}
+
+.tool-approval-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 10px 10px 10px;
+}
+
+.tool-approval-buttons button {
+    margin: 0;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+.tool-approval-buttons button:disabled {
+    cursor: default;
+    opacity: 0.7;
+}
+
+.tool-approval-buttons .tool-approve { background-color: #4CAF50; }
+.tool-approval-buttons .tool-always  { background-color: #2196F3; }
+.tool-approval-buttons .tool-stop    { background-color: #ff9800; }
+.tool-approval-buttons .tool-deny    { background-color: #f44336; }
+
+/* 工具執行紀錄：與思考區塊區隔，用灰藍色系表示這是系統動作而非模型發言 */
+.conversation-item.agent-step {
+    border-left: 3px solid #607d8b;
+    background-color: rgba(96, 125, 139, 0.08);
+}
+
+.conversation-item.agent-step summary {
+    cursor: pointer;
+    font-size: 0.9em;
+    opacity: 0.85;
+}

@@ -1,6 +1,6 @@
 // sw.js
 
-const CACHE_NAME = 'barbara-pwa-v1'; // 快取名稱，版本更新時可以修改此名稱以觸發更新
+const CACHE_NAME = 'barbara-pwa-v2'; // 快取名稱，版本更新時可以修改此名稱以觸發更新
 const urlsToCache = [
   // HTML 檔案
   './', // 通常是 index.html 的別名，取決於伺服器設定
