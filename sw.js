@@ -1,6 +1,6 @@
 // sw.js
 
-const CACHE_NAME = 'barbara-pwa-v2'; // 快取名稱，版本更新時可以修改此名稱以觸發更新
+const CACHE_NAME = 'barbara-pwa-v3'; // 快取名稱，版本更新時可以修改此名稱以觸發更新
 const urlsToCache = [
   // HTML 檔案
   './', // 通常是 index.html 的別名，取決於伺服器設定
@@ -14,7 +14,11 @@ const urlsToCache = [
   // JavaScript 檔案
   './js/marked.min.js',
   './js/app.js',         // 之後會建立的 PWA 主要邏輯檔案
-  './js/settings_pwa.js',// 之後會建立的 PWA 設定頁邏輯檔案
+  './js/settings_pwa.js',
+  './js/sowhat.js',
+
+  // 「所以呢？」的行為定義（執行時 fetch 進來，所以必須快取，隢線才能用）
+  './so-what-prompt.md',// 之後會建立的 PWA 設定頁邏輯檔案
 
   // 圖片資源 (確保路徑與 manifest 及 HTML 中的一致)
   // './images/icon-48.png',

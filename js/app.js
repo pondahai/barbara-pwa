@@ -10,6 +10,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const conversationList = document.getElementById('conversationList');
     const deleteAllConversationsButton = document.getElementById('deleteAllConversationsButton');
     const loadingIndicator = document.getElementById('loadingIndicator');
+    const soWhatButton = document.getElementById('soWhatButton');
+    const cardTableButton = document.getElementById('cardTableButton');
 
     // 全局變數
     let selectedConfig = null;
@@ -45,6 +47,8 @@ document.addEventListener('DOMContentLoaded', () => {
     loadConfigsForSelection();
     registerServiceWorker();
     registerFollowScrollListeners();
+    exposeAppBridge();
+    if (window.SoWhat) window.SoWhat.restoreIfAny();
 
     // 事件監聽器
     if (configSelect) {
@@ -58,6 +62,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (translateButton) {
         translateButton.addEventListener('click', translateTextFromClipboard);
+    }
+    if (soWhatButton) {
+        soWhatButton.addEventListener('click', () => {
+            if (window.SoWhat) window.SoWhat.start();
+        });
+    }
+    if (cardTableButton) {
+        cardTableButton.addEventListener('click', () => {
+            if (window.SoWhat) window.SoWhat.openCardTable();
+        });
     }
     if (userInput) {
         userInput.addEventListener('keydown', (event) => {
@@ -78,6 +92,22 @@ document.addEventListener('DOMContentLoaded', () => {
     // if (deleteAllConversationsButton) {
         // deleteAllConversationsButton.addEventListener('click', confirmDeleteAllConversations);
     // }
+
+    // sowhat.js 是獨立的 script，看不到這個閉包裡的函式。
+    // 與其把它整個搬進來，明確掛出它需要的少數幾個接口。
+    function exposeAppBridge() {
+        window.BarbaraApp = {
+            getSelectedConfig: () => selectedConfig,
+            getConversationStorageKey: getConversationStorageKey,
+            addConversationToStorage: addConversationToStorage,
+            loadConversationsUI: loadConversationsUI,
+            setInterfaceLoading: setInterfaceLoading,
+            escapeHtml: escapeHtml,
+            scrollToBottom: scrollToBottom,
+            extractFirstJsonObject: extractFirstJsonObject,
+            getLanguageName: getLanguageName
+        };
+    }
 
     function registerServiceWorker() {
         if ('serviceWorker' in navigator) {
@@ -215,6 +245,8 @@ document.addEventListener('DOMContentLoaded', () => {
         conversations.forEach((conv, index) => {
             appendConversationToDOM(conv, index, false); // isStreaming is false for stored conversations
         });
+        // 「所以呢？」那段對話不在 conversations 裡，重畫時會被清掉，這裡把節點接回去
+        if (window.SoWhat) window.SoWhat.reattachThread(conversationList);
         scrollToBottom();
     }
 
