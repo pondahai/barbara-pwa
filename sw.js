@@ -1,6 +1,6 @@
 // sw.js
 
-const CACHE_NAME = 'barbara-pwa-v3'; // 快取名稱，版本更新時可以修改此名稱以觸發更新
+const CACHE_NAME = 'barbara-pwa-v4'; // 快取名稱，版本更新時可以修改此名稱以觸發更新
 const urlsToCache = [
   // HTML 檔案
   './', // 通常是 index.html 的別名，取決於伺服器設定
@@ -17,8 +17,8 @@ const urlsToCache = [
   './js/settings_pwa.js',
   './js/sowhat.js',
 
-  // 「所以呢？」的行為定義（執行時 fetch 進來，所以必須快取，隢線才能用）
-  './so-what-prompt.md',// 之後會建立的 PWA 設定頁邏輯檔案
+  // 「所以呢？」的行為定義（執行時 fetch 進來，所以必須快取，離線才能用）
+  './so-what-prompt.md',
 
   // 圖片資源 (確保路徑與 manifest 及 HTML 中的一致)
   // './images/icon-48.png',
@@ -26,10 +26,9 @@ const urlsToCache = [
   // './images/icon-96.png',
   './images/icon-128.png',
   './images/icon-144.png',
-  // './images/icon-152.png',
-  // './images/icon-192.png',
-  // './images/icon-384.png',
-  // './images/icon-512.png',
+  './images/icon-192.png',
+  './images/icon-512.png',
+  './images/icon-maskable-512.png',
   // 如果您擴充功能的 lang.gif 和 summary.gif 也想在 PWA 中使用，並希望它們被快取
   // 請確保它們存在於 PWA 專案的 images 資料夾下，並在此處添加路徑
   // './images/lang.gif',

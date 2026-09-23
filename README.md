@@ -6,6 +6,17 @@ Barbara AI Assistant (PWA) 是一款漸進式網頁應用程式 (Progressive Web
 
 此 PWA 版本脫離了 Chrome 擴充功能的限制，可以在支援 PWA 的現代瀏覽器中獨立運行，並可「安裝」到桌面或行動裝置主畫面，提供更接近原生應用的體驗。
 
+## 網址
+
+*   **線上版（GitHub Pages）：** https://pondahai.github.io/barbara-pwa/
+*   **原始碼：** https://github.com/pondahai/barbara-pwa
+*   **上游的 Chrome 擴充功能：** https://github.com/pondahai/barbara
+*   **擴充功能的 Chrome 線上應用程式商店：** https://chromewebstore.google.com/detail/barbara-local-ai-assistan/ccpdgcdldfgcdnfgigmnlimbnojamghi
+
+> 線上版可以直接安裝使用，但 **AI 功能需要一個 https 的 LLM API**。
+> 原因與解法見下方「部署 PWA」。
+
+
 ## 與 Chrome 擴充功能版的關係
 
 功能以擴充功能版 [pondahai/barbara](https://github.com/pondahai/barbara) 為上游。判斷一項功能能不能搬過來的準則很簡單：**它需不需要當前分頁**。
@@ -80,7 +91,7 @@ Barbara AI Assistant (PWA) 是一款漸進式網頁應用程式 (Progressive Web
 | 檔案 | 職責 |
 |---|---|
 | `js/app.js` | 主邏輯：設定、對話儲存與渲染、SSE 串流解析、思考標籤狀態機、Agent 迴圈與工具註冊表 |
-| `js/sowhat.js` | 「所以呢？」的多輪 JSON 協定、引用句驗証、卡片資料表 |
+| `js/sowhat.js` | 「所以呢？」的多輪 JSON 協定、引用句驗證、卡片資料表 |
 | `so-what-prompt.md` | 「所以呢？」的行為定義（執行時 fetch 進來）。改追問策略改這裡，不用動程式 |
 | `js/settings_pwa.js` | 設定頁邏輯 |
 | `sw.js` | Service Worker。改了前端檔案要升 `CACHE_NAME` |
@@ -99,15 +110,35 @@ Barbara AI Assistant (PWA) 是一款漸進式網頁應用程式 (Progressive Web
     *   確保 `sw.js` 中的 `urlsToCache` 數組包含所有需要快取的資源 (HTML, CSS, JS, 圖片)，且路徑正確。
     *   確保 `index.html` 和 `settings.html` 中對 CSS, JS, Manifest 的連結路徑正確。
     *   **特別注意：** 如果部署到子目錄 (例如 GitHub Pages 的 `https://<username>.github.io/<repository>/`)，所有這些路徑都需要是相對於該子目錄的，或者使用正確的絕對路徑。
-4.  **準備圖示：** 根據 `manifest.webmanifest` 中 `icons` 陣列的定義，準備相應尺寸的圖示檔案，並放置在 `images/` 資料夾下。
-5.  **選擇部署平台 (必須支援 HTTPS)：**
-    *   **推薦靜態網站託管服務：**
-        *   **GitHub Pages:** 免費，與 Git 集成。將專案作為 GitHub 倉庫，並啟用 Pages。
-        *   **Netlify / Vercel / Cloudflare Pages:** 提供免費方案，易於部署，自動 HTTPS。
-        *   **Firebase Hosting:** Google 服務，免費方案，快速 CDN。
-    *   **自有伺服器：** 如果您有自己的 Web 伺服器，確保已配置 HTTPS。
-6.  **部署檔案：** 將專案的所有檔案上傳到您選擇的託管平台。
-7.  **獲取 PWA 的 HTTPS URL。**
+4.  **圖示：** `images/` 已包含 128 / 144 / 192 / 512 與一張 512 的 maskable 版（Android 會把圖示裁成圓形或圓角方形，內容落在中央 72% 內才不會被切到）。192 與 512 是由 144 放大而成，若日後找到原始素材，重新輸出取代會更銳利。
+5.  **選擇部署平台（必須支援 HTTPS）：**
+    *   **GitHub Pages：** 免費、與 Git 集成。這個專案的線上版就是這樣部署的（Settings → Pages → Source 選 `main` 分支、路徑 `/`）。manifest 與 HTML 全用相對路徑，放在子目錄不會壞。
+    *   **Netlify / Vercel / Cloudflare Pages：** 免費方案，自動 HTTPS。
+    *   **自有伺服器：** 確保已配置 HTTPS。
+
+6.  **讓 LLM API 也是 https（這一步不能跳）：**
+
+    靜態檔案放哪裡都行，真正的門檻在這裡：**https 頁面不能呼叫 http 的 API**（瀏覽器的 mixed content 規則）。API 若是 `http://內網IP:埠`，從 GitHub Pages 開啟的 PWA 會裝得起來、但一送出訊息就失敗。
+
+    而「把 PWA 也放在 http 上」不是退路：http 不是安全上下文，Service Worker 不會註冊、瀏覽器不給安裝選項、`navigator.clipboard` 也讀不到。
+
+    常見的幾種做法：
+
+    | 方法 | 做法 | 代價 |
+    |---|---|---|
+    | **Tailscale Serve** | 在 tailnet 的任一節點跑 `tailscale serve --bg http://<API位址>:<埠>`，得到 `https://<node>.<tailnet>.ts.net/` | 真憑證、不公開。裝置需加入 tailnet。代理目標不限本機，所以可以用別的節點避開已被佔用的設定 |
+    | **Cloudflare Tunnel** | `cloudflared tunnel --url http://localhost:<埠>` | 手機不用加入內網，但 API 會公開（建議再加 Cloudflare Access） |
+    | **ngrok** | `ngrok http <埠>` | 最快。免費方案網址每次會變 |
+    | **自己的反向代理** | Caddy / nginx 加 ACME 憑證，代理 `/v1` 到 API | 完全自主，但要有域名 |
+
+    **最乾淨的形狀**是把 PWA 與 API 放在同一個 https 來源（PWA 在 `/`、API 反向代理在 `/v1`）——同源就連 CORS 都不用管。
+
+    設定完成後，在 PWA 的設定頁把 API 網址填成那個 https 位址加 `/v1`，例如 `https://<node>.<tailnet>.ts.net/v1`。
+
+    > **只在桌機用的話可以跳過這一步：** `http://localhost` 本身就是安全上下文。在桌機把這份程式用本機伺服器跑起來（例如 `python -m http.server 8932`），Service Worker 正常、可以安裝，而且頁面是 http、呼叫 http API 不算降級，不會被擋。手機沒有這個後門（iOS Safari 的加入主畫面與 Service Worker 都要求 https）。
+
+7.  **部署檔案：** 把專案所有檔案上傳到選定的平台（GitHub Pages 就是 push 到分支）。
+
 
 ### 本地測試
 
