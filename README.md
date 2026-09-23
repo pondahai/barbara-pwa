@@ -1,7 +1,5 @@
 # Barbara AI Assistant (PWA 版本)
 
-**版本:** (PWA 版本號，例如 1.0)
-
 Barbara AI Assistant (PWA) 是一款漸進式網頁應用程式 (Progressive Web App)，旨在提供一個獨立、可安裝的介面，讓使用者可以方便地與自訂的大型語言模型 (LLM) API 進行互動。它核心功能包括 AI 聊天、對話管理以及 API 設定管理。
 
 此 PWA 版本脫離了 Chrome 擴充功能的限制，可以在支援 PWA 的現代瀏覽器中獨立運行，並可「安裝」到桌面或行動裝置主畫面，提供更接近原生應用的體驗。
