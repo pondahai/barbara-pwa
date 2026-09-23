@@ -21,6 +21,8 @@ document.addEventListener('DOMContentLoaded', () => {
         think: null // 指向當前思考塊的 <details> 元素內的 .thinking-content-inner div
     };
     let pendingStreamText = ''; // 尚未處理的串流尾巴（可能是被切一半的標籤）
+    let pendingSseText = '';    // 尚未解析完的 SSE 行（read() 可能切在 JSON 中間）
+    let reasoningFieldOpen = false; // 獨立 reasoning 欄位的思考區塊是否還沒收尾
     let streamingThinkDetails = null; // 指向當前串流中的思考 <details> 元素，結束時用來摺疊
     let currentStreamIsThinking = false; // 標記當前串流的內容是否在思考塊內
 
@@ -29,6 +31,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const THINK_END_TAGS = ['</think>', '<channel|>', '</thought>'];
     // 判斷 chunk 結尾是否為某個標籤的開頭時用的候選清單。
     // 多收一個 '<|channel>thought' + 換行的版本，這樣剛好切在換行之前時也會等下一個 chunk。
+    // 把思考內容放在獨立欄位的伺服器：llama.cpp 用 reasoning_content、vLLM 用 reasoning
+    const REASONING_DELTA_FIELDS = ['reasoning_content', 'reasoning'];
     const THINK_PARTIAL_TAGS = THINK_START_TAGS.concat(THINK_END_TAGS, ['<|channel>thought\n']);
     const MAX_THINK_TAG_LENGTH = THINK_PARTIAL_TAGS.reduce((max, tag) => Math.max(max, tag.length), 0);
 
@@ -313,6 +317,27 @@ document.addEventListener('DOMContentLoaded', () => {
         return { ready: text, held: '' };
     }
 
+    // 把獨立的 reasoning 欄位轉寫成 <think>...</think>，之後就能沿用同一套標籤狀態機，
+    // 串流渲染與最終儲存都不必再分兩種來源處理。
+    function buildTaggedText(parsed) {
+        let text = '';
+        if (parsed.reasoning) {
+            if (!reasoningFieldOpen) {
+                text += '<think>';
+                reasoningFieldOpen = true;
+            }
+            text += parsed.reasoning;
+        }
+        if (parsed.content) {
+            if (reasoningFieldOpen) { // 正式回覆開始，思考區塊收尾
+                text += '</think>';
+                reasoningFieldOpen = false;
+            }
+            text += parsed.content;
+        }
+        return text;
+    }
+
     function escapeHtml(unsafe) {
         if (typeof unsafe !== 'string') return '';
         return unsafe
@@ -469,6 +494,8 @@ document.addEventListener('DOMContentLoaded', () => {
         streamingThinkDetails = null;
         currentStreamIsThinking = false;
         pendingStreamText = '';
+        pendingSseText = '';
+        reasoningFieldOpen = false;
         autoFollowScroll = true; // 新回答開始時重置為跟隨模式
         let currentAccumulatedTextForDOM = ""; // 用於當前 DOM 塊的文本
 
@@ -503,9 +530,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 收尾：buffer 裡剩下的是不完整的標籤，當成普通文字輸出
                     contentTokens = pendingStreamText;
                     pendingStreamText = '';
+                    if (reasoningFieldOpen) { // 回應在思考中就結束，補上收尾標籤
+                        contentTokens += '</think>';
+                        reasoningFieldOpen = false;
+                    }
                 } else {
                     const rawChunk = decoder.decode(value, { stream: true });
-                    pendingStreamText += parseStreamChunk(rawChunk); // 從原始 chunk 中提取實際內容
+                    pendingStreamText += buildTaggedText(parseStreamChunk(rawChunk)); // 從原始 chunk 中提取實際內容
                     const split = splitAtPossibleTag(pendingStreamText);
                     pendingStreamText = split.held;
                     contentTokens = split.ready;
@@ -654,6 +685,8 @@ document.addEventListener('DOMContentLoaded', () => {
             streamingThinkDetails = null;
             currentStreamIsThinking = false;
             pendingStreamText = '';
+            pendingSseText = '';
+            reasoningFieldOpen = false;
             scrollToBottom();
         }
     }
@@ -701,32 +734,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    function parseStreamChunk(rawChunk) { // 從原始 JSON Lines 數據中提取 content token
+    // 從 SSE 數據中提取本次可用的 content / reasoning。
+    // 兩種思考內容的來源：
+    //   a) content 裡的 <think> 等標籤（LM Studio、未開推理解析的 llama.cpp）
+    //   b) 獨立欄位 delta.reasoning_content（llama.cpp）或 delta.reasoning（vLLM）
+    // 這裡只負責取值，標籤解析仍由呼叫端的狀態機處理。
+    function parseStreamChunk(rawChunk) {
         let content = '';
-        const lines = rawChunk.split('\n').filter(line => line.trim() !== '');
+        let reasoning = '';
+
+        // 一次 read() 可能剛好切在某一行 JSON 中間，把不完整的尾行留到下一次再解析
+        pendingSseText += rawChunk;
+        const lines = pendingSseText.split('\n');
+        pendingSseText = lines.pop();
+
         lines.forEach(line => {
-            if (line.startsWith('data: ')) {
-                const data = line.substring('data: '.length);
-                if (data.trim().toUpperCase() === '[DONE]') { // 大小寫不敏感的 [DONE]
-                    return;
+            line = line.trim();
+            if (!line.startsWith('data: ')) return;
+            const data = line.substring('data: '.length);
+            if (data.trim().toUpperCase() === '[DONE]') { // 大小寫不敏感的 [DONE]
+                return;
+            }
+            try {
+                const parsedData = JSON.parse(data);
+                const delta = parsedData.choices && parsedData.choices[0] && parsedData.choices[0].delta;
+                if (!delta) return; // 有些 chunk 只有 role 沒有內容，是正常的
+                if (delta.content) {
+                    content += delta.content;
                 }
-                try {
-                    const parsedData = JSON.parse(data);
-                    if (parsedData.choices && parsedData.choices[0] && parsedData.choices[0].delta) {
-                        if (parsedData.choices[0].delta.content) {
-                             content += parsedData.choices[0].delta.content;
-                        }
-                        // 有些模型可能只在 delta 中包含 role 而沒有 content (例如開頭第一個 chunk)
-                        // else if (parsedData.choices[0].delta.role && !parsedData.choices[0].delta.content) {
-                        //    // 這是正常的，例如第一個 chunk 只有 role: assistant
-                        // }
-                    }
-                } catch (error) {
-                    // console.warn('解析串流 JSON 錯誤 (可忽略不完整部分):', data, error);
-                }
+                REASONING_DELTA_FIELDS.forEach(field => {
+                    if (delta[field]) reasoning += delta[field];
+                });
+            } catch (error) {
+                // console.warn('解析串流 JSON 錯誤:', data, error);
             }
         });
-        return content;
+
+        return { content: content, reasoning: reasoning };
     }
 
     async function getTextFromClipboard() {
