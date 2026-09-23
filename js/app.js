@@ -20,12 +20,17 @@ document.addEventListener('DOMContentLoaded', () => {
         main: null, // 指向當前主要 (非思考) 回應的 .conversation-content div
         think: null // 指向當前思考塊的 <details> 元素內的 .thinking-content-inner div
     };
+    let pendingStreamText = ''; // 尚未處理的串流尾巴（可能是被切一半的標籤）
     let streamingThinkDetails = null; // 指向當前串流中的思考 <details> 元素，結束時用來摺疊
     let currentStreamIsThinking = false; // 標記當前串流的內容是否在思考塊內
 
     // 各家推理模型的思考標籤：DeepSeek <think>、Gemma 4 <|channel>thought、其他 <thought>
     const THINK_START_TAGS = ['<think>', '<|channel>thought', '<thought>'];
     const THINK_END_TAGS = ['</think>', '<channel|>', '</thought>'];
+    // 判斷 chunk 結尾是否為某個標籤的開頭時用的候選清單。
+    // 多收一個 '<|channel>thought' + 換行的版本，這樣剛好切在換行之前時也會等下一個 chunk。
+    const THINK_PARTIAL_TAGS = THINK_START_TAGS.concat(THINK_END_TAGS, ['<|channel>thought\n']);
+    const MAX_THINK_TAG_LENGTH = THINK_PARTIAL_TAGS.reduce((max, tag) => Math.max(max, tag.length), 0);
 
     // 智慧型跟隨捲動：使用者往上看前文時暫停自動跟隨，回到底部時自動恢復
     let autoFollowScroll = true;          // 是否處於「跟隨」狀態
@@ -293,6 +298,21 @@ document.addEventListener('DOMContentLoaded', () => {
         return found;
     }
 
+    // 串流可能把標籤切成兩半（例如一個 chunk 結尾是 '<thi'、下一個 chunk 才送來 'nk>'）。
+    // 把結尾「有可能是標籤開頭」的字元留在 buffer 裡，等下一個 chunk 到齊再一起判斷；
+    // 最多只會留 MAX_THINK_TAG_LENGTH - 1 個字元，不會無限累積。
+    function splitAtPossibleTag(text) {
+        const maxHold = Math.min(text.length, MAX_THINK_TAG_LENGTH - 1);
+        for (let hold = maxHold; hold > 0; hold--) { // 由長到短，優先採用較長的候選
+            const suffix = text.slice(text.length - hold);
+            const isPartialTag = THINK_PARTIAL_TAGS.some(tag => tag.length > suffix.length && tag.startsWith(suffix));
+            if (isPartialTag) {
+                return { ready: text.slice(0, text.length - hold), held: suffix };
+            }
+        }
+        return { ready: text, held: '' };
+    }
+
     function escapeHtml(unsafe) {
         if (typeof unsafe !== 'string') return '';
         return unsafe
@@ -448,6 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
         streamingDOMs.think = null;
         streamingThinkDetails = null;
         currentStreamIsThinking = false;
+        pendingStreamText = '';
         autoFollowScroll = true; // 新回答開始時重置為跟隨模式
         let currentAccumulatedTextForDOM = ""; // 用於當前 DOM 塊的文本
 
@@ -476,10 +497,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             while (true) {
                 const { done, value } = await reader.read();
-                if (done) break;
 
-                const rawChunk = decoder.decode(value, { stream: true });
-                const contentTokens = parseStreamChunk(rawChunk); // 從原始 chunk 中提取實際內容
+                let contentTokens;
+                if (done) {
+                    // 收尾：buffer 裡剩下的是不完整的標籤，當成普通文字輸出
+                    contentTokens = pendingStreamText;
+                    pendingStreamText = '';
+                } else {
+                    const rawChunk = decoder.decode(value, { stream: true });
+                    pendingStreamText += parseStreamChunk(rawChunk); // 從原始 chunk 中提取實際內容
+                    const split = splitAtPossibleTag(pendingStreamText);
+                    pendingStreamText = split.held;
+                    contentTokens = split.ready;
+                }
 
                 if (contentTokens) {
                     accumulatedResponse += contentTokens; // 累積所有解析後的文本
@@ -577,6 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } // end while (processableTokenStream.length > 0)
                 } // end if (contentTokens)
                 smartFollowScroll();
+                if (done) break;
             } // end while(true) reader.read()
 
             // 串流結束，移除最後的游標並儲存
@@ -622,6 +653,7 @@ document.addEventListener('DOMContentLoaded', () => {
             streamingDOMs.think = null;
             streamingThinkDetails = null;
             currentStreamIsThinking = false;
+            pendingStreamText = '';
             scrollToBottom();
         }
     }
