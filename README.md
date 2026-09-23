@@ -6,6 +6,15 @@ Barbara AI Assistant (PWA) 是一款漸進式網頁應用程式 (Progressive Web
 
 此 PWA 版本脫離了 Chrome 擴充功能的限制，可以在支援 PWA 的現代瀏覽器中獨立運行，並可「安裝」到桌面或行動裝置主畫面，提供更接近原生應用的體驗。
 
+## 與 Chrome 擴充功能版的關係
+
+功能以擴充功能版 [pondahai/barbara](https://github.com/pondahai/barbara) 為上游。判斷一項功能能不能搬過來的準則很簡單：**它需不需要當前分頁**。
+
+*   純 LLM + 儲存的功能（聊天、思考過程顯示、Agent 迴圈、「所以呢？」）完整移植。
+*   需要 `chrome.tabs` / `chrome.scripting` / `chrome.contextMenus` 的能力（讀當前網頁、注入 JS、切分頁、截圖、右鍵選單）PWA 做不到，改用等價的入口與工具。
+
+完整的對照表與移植決策見 [`PWA_PORTING_NOTES.md`](PWA_PORTING_NOTES.md)。
+
 ## 主要功能
 
 *   **AI 聊天介面:**
@@ -56,12 +65,28 @@ Barbara AI Assistant (PWA) 是一款漸進式網頁應用程式 (Progressive Web
 
 ## 技術棧
 
-*   **前端：** HTML, CSS, Vanilla JavaScript
+*   **前端：** HTML, CSS, Vanilla JavaScript（無建構步驟）
 *   **Markdown 渲染：** `marked.js`
 *   **PWA 核心：**
     *   Web App Manifest (`manifest.webmanifest`)
     *   Service Worker (`sw.js`) - 用於快取應用程式外殼和靜態資源。
-*   **本地儲存：** 使用瀏覽器的 `localStorage` 儲存 API 設定和對話歷史。
+*   **本地儲存：** 使用瀏覽器的 `localStorage`。主要鍵值：
+    *   `pwa_configs` / `pwa_selectedConfigIndex` —— API 設定
+    *   `pwa_conv_<apiUrl>_<modelId>` —— 對話歷史（每組設定各自一份）
+    *   `pwa_soWhatSession` / `pwa_soWhatCards` —— 「所以呢？」的未完成對話與卡片
+
+### 檔案結構
+
+| 檔案 | 職責 |
+|---|---|
+| `js/app.js` | 主邏輯：設定、對話儲存與渲染、SSE 串流解析、思考標籤狀態機、Agent 迴圈與工具註冊表 |
+| `js/sowhat.js` | 「所以呢？」的多輪 JSON 協定、引用句驗証、卡片資料表 |
+| `so-what-prompt.md` | 「所以呢？」的行為定義（執行時 fetch 進來）。改追問策略改這裡，不用動程式 |
+| `js/settings_pwa.js` | 設定頁邏輯 |
+| `sw.js` | Service Worker。改了前端檔案要升 `CACHE_NAME` |
+| `PWA_PORTING_NOTES.md` | 移植決策與踩到的坑（哪些功能搬不動、串流的坑、部署限制） |
+
+`js/sowhat.js` 是獨立的 script，透過 `app.js` 掛出的 `window.BarbaraApp` 取用主邏輯的函式。理由見 `PWA_PORTING_NOTES.md`。
 
 ## 如何部署與使用
 
@@ -131,10 +156,13 @@ Barbara AI Assistant (PWA) 是一款漸進式網頁應用程式 (Progressive Web
 
 ## 注意事項
 
+*   **❗ https 頁面不能連 http API：** 這是最容易踩到的一件事。從 GitHub Pages（https）開啟的 PWA，去 `fetch('http://...')` 會被瀏覽器的 mixed content 規則直接封鎖，**裝得起來但一送出就失敗**。而把 PWA 放在 http 上也不是退路：http 不是安全上下文，Service Worker 不會註冊、不能安裝、剪貼簿也讀不到。解法是給 API 掛 https（反向代理、Tailscale Serve、Cloudflare Tunnel），或把 PWA 與 API 放在同一個 https 來源（同源就連 CORS 都不用管）。本機用 `http://localhost` 測試不受此限。
+*   **❗ 改了前端檔案要升 `CACHE_NAME`：** `sw.js` 的 `CACHE_NAME` 是寫死的字串，不升版號的話已安裝的 PWA 會一直吃舊快取，看不到新程式碼。新增檔案也要加進 `urlsToCache`（`so-what-prompt.md` 是執行時 fetch 進來的，所以它必須在清單裡）。
 *   **API 金鑰安全：** API 金鑰儲存在瀏覽器的 `localStorage` 中。請確保您的裝置和瀏覽器環境安全。
-*   **網路連線：** 核心的 AI 聊天、摘要、翻譯功能依賴於正常的網路連線至您設定的 LLM API 端點。
-*   **CORS 問題：** 確保您使用的 LLM API 伺服器允許來自 PWA 部署網域的跨域請求 (CORS)。
-*   **圖示：** 為了獲得最佳的安裝和視覺體驗，請確保 `images/` 目錄下包含 `manifest.webmanifest` 中引用的所有尺寸的圖示。
+*   **API 網址要帶 `/v1`：** 程式會自己接 `/chat/completions` 與 `/models`，所以設定裡填的是例如 `http://host:8000/v1`。
+*   **CORS：** 確保 LLM API 伺服器允許來自 PWA 部署網域的跨來源請求。llama.cpp 與 vLLM 預設都會回 CORS 標頭。
+*   **推理模型的等待時間：** 本機推理模型可能為了一句短回覆思考上千個 token。所有路徑都改成串流並即時顯示思考過程，但整輪的總時間仍然取決於模型。
+*   **圖示：** 目前只有 128 與 144。144 剛好過 Chrome 的最低可安裝門檻，但建議補 192×192 與 512×512（其中一張標 `"purpose": "maskable"`），不然 Android 主畫面圖示會模糊或被硬裁。
 
 ---
 
